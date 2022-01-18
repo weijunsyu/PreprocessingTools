@@ -1,8 +1,8 @@
 import sklearn
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-import keras as ks
+#import tensorflow as tf
+#import keras as ks
 import os
 import sys
 import argparse
@@ -67,7 +67,7 @@ if __name__ == "__main__":
             # Get image file ready
             image = io.imread(os.path.join(root, file))
 
-            
+
 
 
 
