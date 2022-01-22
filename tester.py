@@ -6,6 +6,16 @@ import sys
 from skimage import io, color, img_as_float
 import matplotlib.pyplot as plt
 
+def ReformImage(meta, image):
+    return image.reshape(meta)
+
+def ShowImage(image, grey=False):
+    i, (img) = plt.subplots(1)
+    if grey:
+        img.imshow(image, cmap ='gray')
+    else:
+        img.imshow(image)
+
 def ReadMeta(filepath):
     labels = []
     meta = []
