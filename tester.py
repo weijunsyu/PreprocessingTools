@@ -6,6 +6,14 @@ import sys
 from skimage import io, color, img_as_float
 import matplotlib.pyplot as plt
 
+import imagePre as im
+
+
+TEST_SOURCE = "H:\\Test\\Source"
+TEST_TARGET = "H:\\Test\\Target"
+TEST_META = "H:\\Test\\Metadata"
+
+
 def ReformImage(meta, image):
     return image.reshape(meta)
 

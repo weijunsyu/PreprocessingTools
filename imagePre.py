@@ -55,7 +55,7 @@ def CheckInvalidDirectory(directory, label="", verbose=False, quiet=False):
 def ModFilename(path, prefix="", suffix=""):
     root, file = os.path.split(path)
     file, ext = os.path.splitext(file)
-    file = suffix + file + prefix
+    file = prefix + file + suffix
     return os.path.join(root, file + ext)
 
 def GetLabelsFromPath(path, delimiter=os.sep, verbose=False):
@@ -94,11 +94,11 @@ def NormalizeDataset(dataset, verbose=False):
     print("Not yet implemented, return 0")
     return 0
 
-def FormatImage(image, float=False, verbose=False):
+def FormatImage(image, float=False):
     if float:
-        return False, img_as_float(image)
+        return img_as_float(image)
     else:
-        return False, img_as_ubyte(image)
+        return img_as_ubyte(image)
 
 def StandardizeImage(image, verbose=False, quiet=False):
     print("Not yet implemented, return 0")
@@ -124,17 +124,13 @@ def SaveFlatImage(image, filename, directory, float=False, compress=False, abspa
     np.savetxt(filepath, image, fmt=format)
     return filepath
 
-def ExportMetaData(data, path='', grey=False):
-    filepath = os.path.join(path, filename)
+def ExportMetaData(data, path, greyscale=False):
+    filepath = IterateFilename(os.path.join(path, METADATA_FILENAME), prefix="_")
     try:
         file = open(filepath, 'x')
     except:
-        if override:
-            file = open(filepath, 'w')
-        else:
-            print("file already exists.")
-            sys.exit()
-
+        print("SOMETHING IS WRONG THIS SHOULD NEVER BE REACHED.")
+        sys.exit()
     for image in data:
         labels, meta, imagePath = image
         # labels: num labels followed by each label
@@ -143,64 +139,56 @@ def ExportMetaData(data, path='', grey=False):
             file.write(str(label) + " ")
         # shape data
         values = 3
-        if grey:
+        if greyscale:
             values = 2
         file.write(str(values) + " ")
         for i in range(values):
             file.write(str(meta[i]) + " ")
         # path to the flattened image file (.csv)
         file.write(imagePath + "\n")
-
     file.close()
 
-    def CreateDirectory(directory, label="", clean=False, verbose=False, quiet=False):
-        if not os.path.isdir(directory):
-            if not quiet:
-                print("The " + label + " directory '" + directory + "' does not exist. Creating directory...")
-            try:
-                os.makedirs(directory)
-                if verbose:
-                    print("Created " + label + " directory: " + "'" + directory + "'")
-            except OSError as error:
-                if not quiet:
-                    print("Failed to create " + label + " directory: '" + directory + "'")
-                return True
-        else:
-            if not quiet:
-                print("The " + label + " directory '" + directory + "' already exists.")
-            if clean:
-                return True
-        return False
-
-
-
-    def IterateFilename(path, initial=0, prefix="", suffix="_", prepend=False):
-        if prepend:
-            path = ModFilename(path, prefix=prefix+initial+suffix)
-        else:
-            path = ModFilename(path, suffix=prefix+initial+suffix)
-        initial += 1
-        while os.path.isfile(path):
-            if prepend:
-                path = ModFilename(path, prefix=prefix+initial+suffix)
-            else:
-                path = ModFilename(path, suffix=prefix+initial+suffix)
-            initial += 1
-
-
-    def ExportFileList(fileList, exportName, exportPath):
-        filepath = IterateFilename(os.path.join(exportPath, exportName))
-
+def CreateDirectory(directory, label='', clean=False, verbose=False, quiet=False):
+    if not os.path.isdir(directory):
+        if not quiet:
+            print("The " + label + " directory '" + directory + "' does not exist. Creating directory...")
         try:
-            file = open(filepath, 'x')
-        except:
-            print("SOMETHING IS WRONG THIS SHOULD NEVER BE REACHED.")
-            sys.exit()
+            os.makedirs(directory)
+            if verbose:
+                print("Created " + label + " directory: " + "'" + directory + "'")
+        except OSError as error:
+            if not quiet:
+                print("Failed to create " + label + " directory: '" + directory + "'")
+            return True
+    else:
+        if not quiet:
+            print("The " + label + " directory '" + directory + "' already exists.")
+        if clean:
+            return True
+    return False
 
-        for ele in fileList:
-            file.write(ele + "\n")
+def IterateFilename(path, initial=0, prefix="_", suffix="", prepend=False):
+    newpath = path
+    while os.path.isfile(newpath):
+        if prepend:
+            newpath = ModFilename(path, prefix=prefix+str(initial)+suffix)
+        else:
+            newpath = ModFilename(path, suffix=prefix+str(initial)+suffix)
+        initial += 1
+    return newpath
 
-        file.close()
+def ExportFileList(fileList, exportName, exportPath):
+    filepath = IterateFilename(os.path.join(exportPath, exportName), prefix="_")
+    try:
+        file = open(filepath, 'x')
+    except:
+        print("SOMETHING IS WRONG THIS SHOULD NEVER BE REACHED.")
+        sys.exit()
+
+    for ele in fileList:
+        file.write(ele + "\n")
+
+    file.close()
 
 
 if __name__ == "__main__":
@@ -213,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("-g", "--greyscale", action="store_true", help="Convert images to greyscale.")
     parser.add_argument("-f", "--float", action="store_true", help="Store values as floats (0-1) instead of unsigned integers (0-255).")
     parser.add_argument("-o", "--override", action="store_true", help="Allows for the target directory to be an existing directory and will override any existing files if collision occurs during export.")
-    parser.add_arguemnt("-a", "--abspath", action="store_true", help="Force absolute path names.")
+    parser.add_argument("-a", "--abspath", action="store_true", help="Force absolute path names.")
     logGroup = parser.add_mutually_exclusive_group()
     logGroup.add_argument("-v", "--verbose", action="store_true", help="Output actions to the console and show detailed information.")
     logGroup.add_argument("-q", "--quiet", action="store_true", help="Suppress ouptut to the console.")
@@ -253,9 +241,9 @@ if __name__ == "__main__":
                 if labels[0]:
                     # Get image file ready
                     if args.greyscale:
-                        image = io.image(filepath, as_gray=True)
+                        image = io.imread(filepath, as_gray=True)
                     else:
-                        image = io.image(filepath, as_gray=False)
+                        image = io.imread(filepath, as_gray=False)
                     # Save number of colour channels
                     channels = DetermineChannels(image, verbose=args.verbose)
                     # Convert image from rgba to rgb if applicable
@@ -270,7 +258,7 @@ if __name__ == "__main__":
                         # Flatten image and store image shape data as meta
                         meta, flatImage = FlattenImage(image, verbose=args.verbose)
                         # Save flat image to csv file
-                        flatFilepath = SaveFlatImage(flatImage, args.target, str(i), float=args.float, compress=args.compress, abspath=args.abspath)
+                        flatFilepath = SaveFlatImage(flatImage, str(i), args.target, float=args.float, compress=args.compress, abspath=args.abspath)
                         i += 1
                         data.append([labels, meta, flatFilepath])
                     else:
@@ -282,16 +270,12 @@ if __name__ == "__main__":
                         print("Current image is unlabeled. Image will be ignored.")
                     unlabelList.append(filepath)
 
-
-
-
-
     if args.metadata:
-        ExportMetaData(data, filename=args.metadata, grey=args.greyscale)
+        ExportMetaData(data, args.metadata, greyscale=args.greyscale)
         ExportFileList(unlabelList, UNLABELED_FILENAME, args.metadata)
         ExportFileList(uselessList, USELESS_FILENAME, args.metadata)
     else:
-        ExportMetaData(data, path=args.target, grey=args.greyscale)
+        ExportMetaData(data, args.target, greyscale=args.greyscale)
         ExportFileList(unlabelList, UNLABELED_FILENAME, args.target)
         ExportFileList(uselessList, USELESS_FILENAME, args.target)
 
