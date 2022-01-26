@@ -6,7 +6,7 @@ import sys
 from skimage import io, color, img_as_float
 import matplotlib.pyplot as plt
 
-import pre_image as im
+import clean_image as im
 
 
 TEST_SOURCE = "H:\\Test\\Source"
