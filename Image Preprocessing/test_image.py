@@ -6,7 +6,7 @@ import sys
 from skimage import io, color, img_as_float
 import matplotlib.pyplot as plt
 
-import imagePre as im
+import pre_image as im
 
 
 TEST_SOURCE = "H:\\Test\\Source"
@@ -17,12 +17,9 @@ TEST_META_FILE = "H:\\Test\\Metadata\\metadata.csv"
 def ReformImage(shape, image):
     return image.reshape(shape)
 
-def ShowImage(image, grey=False):
+def ShowImage(image):
     i, (img) = plt.subplots(1)
-    if grey:
-        img.imshow(image, cmap ='gray')
-    else:
-        img.imshow(image)
+    img.imshow(image)
 
 def ReadMeta(filepath):
     data = []
@@ -49,10 +46,7 @@ def ReadMeta(filepath):
 
     return data
 
-
-data = ReadMeta(TEST_META_FILE)
-
-for meta in data:
+def GetImageFromMeta(meta):
     labels = meta[0]
     shape = meta[1]
     format = meta[2]
@@ -60,6 +54,15 @@ for meta in data:
 
     flatImage = np.loadtxt(path, dtype=format)
     image = ReformImage(shape, flatImage)
+
+    return image
+
+
+
+data = ReadMeta(TEST_META_FILE)
+
+for meta in data:
+    image = GetImageFromMeta(meta)
 
     ShowImage(image)
 
