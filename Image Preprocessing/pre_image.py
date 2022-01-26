@@ -3,7 +3,6 @@ import os
 import sys
 import argparse
 from skimage import io, color, img_as_float, img_as_ubyte
-import matplotlib.pyplot as plt
 
 
 METADATA_FILENAME = "metadata.csv"
