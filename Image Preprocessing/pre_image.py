@@ -1,4 +1,5 @@
 import numpy as np
+import cv2
 import os
 import sys
 import argparse
@@ -64,44 +65,30 @@ def getlabels(path, delimiter=os.sep, verbose=False):
             print("The labels for image are: " + str(labels))
     return labels
 
-def getchannels(image, verbose=False):
+def getchannels(shape):
     channels = 0
     try:
-        channels = image.shape[2]
+        channels = shape[2]
     except:
         channels = 1
-    if verbose:
-        print("The image has " + str(channels) + " colour channel(s).")
     return channels
 
-def greynorm(image, greyscale=False, verbose=False):
-    # return a tuple (useful flag, image) if image has no useful data return False, else return True
-    original = image
-    if not greyscale:
+def checkuseful(image, channels, verbose=False):
+    if channels > 1:
         image = color.rgb2gray(image)
     min = np.min(image)
     max = np.max(image)
     if min == max:
         if verbose:
             print("Image is one colour. No useful data contained.")
-        return False, image
-    if verbose:
-        print("Normalized image based on self luminance range.")
-    return True, (original - min) / (max - min)
-
-def normdataset(dataset, verbose=False):
-    print("Not yet implemented, return 0")
-    return 0
+        return False
+    return True
 
 def formatimage(image, float=False):
     if float:
         return img_as_float(image)
     else:
         return img_as_ubyte(image)
-
-def standardize(image, verbose=False, quiet=False):
-    print("Not yet implemented, return 0")
-    return 0
 
 def flatten(image, verbose=False):
     if verbose:
@@ -123,7 +110,7 @@ def saveimage(image, filename, directory, float=False, compress=False, abspath=F
     np.savetxt(filepath, image, fmt=format)
     return filepath
 
-def exportmeta(data, path, greyscale=False, float=False):
+def exportmeta(data, path, float=False):
     filepath = iteratefilename(os.path.join(path, METADATA_FILENAME), prefix="_")
     try:
         file = open(filepath, 'x')
@@ -131,19 +118,19 @@ def exportmeta(data, path, greyscale=False, float=False):
         print("SOMETHING IS WRONG THIS SHOULD NEVER BE REACHED.")
         sys.exit()
     for image in data:
-        labels, meta, imagepath = image
+        labels, shape, imagepath = image
         # labels: num labels followed by each label
         file.write(str(len(labels)) + " ")
         for label in labels:
             label = "_".join(label.split())
             file.write(str(label) + " ")
         # shape data
-        values = 3
-        if greyscale:
-            values = 2
-        file.write(str(values) + " ")
-        for i in range(values):
-            file.write(str(meta[i]) + " ")
+        shapelen = getchannels(shape)
+        if shapelen == 1:
+            shapelen = 2
+        file.write(str(shapelen) + " ")
+        for i in range(shapelen):
+            file.write(str(shape[i]) + " ")
         # format of image file (int or float)
         if float:
             file.write("float ")
@@ -201,15 +188,16 @@ if __name__ == "__main__":
     parser.add_argument("target", type=str, help="Path to the target directory where all processed data output files will be stored.")
     parser.add_argument("-m", "--metadata", type=str, help="Optional path to the metadata file. If unset then metadata file will be stored in the target directory.")
     parser.add_argument("-s", "--source", action="append", type=str, help="Path to the source directory holding image files to be processed. The folder names of the directory tree determines the labels for each image. Each extra argument will add another source directory to the list of directories.")
-    parser.add_argument("-r", "--root", action="store_true", help="Ignore the root directory name in the labeling process for each source file.")
+    parser.add_argument("-r", "--root", action="store_true", help="Do not ignore the root directory name in the labeling process for each source file.")
     parser.add_argument("-c", "--compress", action="store_true", help="Compress each output file using GNU zip (.gz).")
     parser.add_argument("-g", "--greyscale", action="store_true", help="Convert images to greyscale.")
     parser.add_argument("-f", "--float", action="store_true", help="Store values as floats (0-1) instead of unsigned integers (0-255).")
     parser.add_argument("-o", "--override", action="store_true", help="Allows for the target directory to be an existing directory and will override any existing files if collision occurs during export.")
     parser.add_argument("-a", "--abspath", action="store_true", help="Force absolute path names.")
-    logGroup = parser.add_mutually_exclusive_group()
-    logGroup.add_argument("-v", "--verbose", action="store_true", help="Output actions to the console and show detailed information.")
-    logGroup.add_argument("-q", "--quiet", action="store_true", help="Suppress ouptut to the console.")
+    parser.add_argument("-e", "--resize", type=int, help="Resize and rescale the images such that the resolution becomes m x m where m is the value given.")
+    log_group = parser.add_mutually_exclusive_group()
+    log_group.add_argument("-v", "--verbose", action="store_true", help="Output actions to the console and show detailed information.")
+    log_group.add_argument("-q", "--quiet", action="store_true", help="Suppress ouptut to the console.")
 
     args = parser.parse_args()
 
@@ -239,7 +227,7 @@ if __name__ == "__main__":
                 elif args.verbose:
                     print("Currently processing image: " + filepath)
                 labelpath = root
-                if args.root:
+                if not args.root:
                     labelpath = removeaffix(root, prefix=source)
                 labels = getlabels(trimpathsep(labelpath), verbose=args.verbose)
                 # If data is labeled
@@ -249,16 +237,20 @@ if __name__ == "__main__":
                         image = io.imread(filepath, as_gray=True)
                     else:
                         image = io.imread(filepath, as_gray=False)
+
+                    if args.resize:
+                        # Resize image
+                        image = cv2.resize(image, (args.resize, args.resize), interpolation=cv2.INTER_AREA)
+
                     # Save number of colour channels
-                    channels = getchannels(image, verbose=args.verbose)
+                    channels = getchannels(image.shape)
                     # Convert image from rgba to rgb if applicable
                     if channels == 4:
-                        image = rgba2rgb(image)
+                        image = color.rgba2rgb(image)
                         channels = 3
-                    # greyscale normalize image
-                    useful, image = greynorm(image, greyscale=args.greyscale, verbose=args.verbose)
-                    if useful:
-                        # Clamp image to float values to between 0 and 1 if float flag set otherwise to integer values between 0 and 255 also do various cleanup such as colour space formating
+                    # if image contains useful data
+                    if checkuseful(image, channels, verbose=args.verbose):
+                        # Format image as either int or float values (0-255 or 0-1)
                         image = formatimage(image, float=args.float)
                         # Flatten image and store image shape data as meta
                         meta, flat = flatten(image, verbose=args.verbose)
@@ -279,11 +271,11 @@ if __name__ == "__main__":
         print("Finished processing images. Now exporting metadata...")
 
     if args.metadata:
-        exportmeta(data, args.metadata, greyscale=args.greyscale, float=args.float)
+        exportmeta(data, args.metadata, float=args.float)
         exportfilelist(unlabeled, UNLABELED_FILENAME, args.metadata)
         exportfilelist(useless, USELESS_FILENAME, args.metadata)
     else:
-        exportmeta(data, args.target, greyscale=args.greyscale, float=args.float)
+        exportmeta(data, args.target, float=args.float)
         exportfilelist(unlabeled, UNLABELED_FILENAME, args.target)
         exportfilelist(useless, USELESS_FILENAME, args.target)
 
