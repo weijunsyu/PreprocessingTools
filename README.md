@@ -1,6 +1,5 @@
-# PreprocessingTools
-Scripts for pre-processing data
-
+# Preprocessing Tools
+Python scripts for pre-processing data
 
 ## Image preprocessing:
 1. **Image cleaning: _clean_image.py_**
