@@ -5,6 +5,14 @@ import argparse
 from pdfminer.pdfparser import PDFParser
 
 
+def readpdf(file):
+    pass
+
+def readflat(filepath):
+    with open(filepath, "r") as file:
+        for line
+
+
 # pdfTextMiner.py
 # Python 2.7.6
 # For Python 3.x use pdfminer3k module
