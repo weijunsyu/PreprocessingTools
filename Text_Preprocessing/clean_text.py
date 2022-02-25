@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 import string
-from pdfminer.pdfparser import PDFParser
+#from pdfminer.pdfparser import PDFParser
 
 
 METADATA_FILENAME = "metadata.csv"
@@ -35,20 +35,20 @@ def trimpathsep(path, leading=True, trailing=True):
     elif trailing:
         return path.rstrip(os.sep)
 
-def checkdirs(dirs, label="", verbose=False, quiet=False):
+def checkdirs(dirs, dirlabel="", verbose=False, quiet=False):
     invalid = False
     for dir in dirs:
-        invalid = checkdir(dir, label=label, verbose=verbose, quiet=quiet)
+        invalid = checkdir(dir, dirlabel=dirlabel, verbose=verbose, quiet=quiet)
         if invalid and not verbose:
             return invalid
     return invalid
 
-def checkdir(directory, label="", verbose=False, quiet=False):
+def checkdir(directory, dirlabel="", verbose=False, quiet=False):
     if not os.path.isdir(directory):
         if verbose:
-            print("The " + label + " directory: '" + dir + "'" + " does not exist.")
+            print("The " + dirlabel + " directory: '" + dir + "'" + " does not exist.")
         elif not quiet:
-            print("Some " + label + " path(s) are invalid.")
+            print("Some " + dirlabel + " path(s) are invalid.")
         return True
     return False
 
@@ -66,10 +66,23 @@ def getlabels(path, delimiter=os.sep, verbose=False):
     return labels
 
 def getmeta(text, verbose=False):
-    pass
+    charcount = len(text)
+    wordcount = len(text.split())
+    meta = [charcount, wordcount]
+    return meta
 
 def checkuseful(meta, minchars=0, maxchars=0, verbose=False):
-    pass
+    charcount, wordcount = meta
+    if charcount == 0:
+        return False
+    elif minchars == 0 and maxchars == 0:
+        return True
+    elif charcount < minchars:
+        return False
+    elif charcount > maxchars:
+        return False
+    else:
+        return False
 
 def savetext(text, filename, directory, compress=False, abspath=False):
     ext = FLAT_TEXT_EXT
@@ -79,10 +92,12 @@ def savetext(text, filename, directory, compress=False, abspath=False):
     if abspath:
         filepath = os.path.abspath(filepath)
 
-    np.savetxt(filepath, text)
+    with open(filepath, "w") as file:
+        file.write(text)
+
     return filepath
 
-def exportmeta(data, path, float=False):
+def exportmeta(data, path):
     filepath = iteratefilename(os.path.join(path, METADATA_FILENAME), prefix="_")
     try:
         file = open(filepath, 'x')
@@ -96,27 +111,28 @@ def exportmeta(data, path, float=False):
         for label in labels:
             label = "_".join(label.split())
             file.write(str(label) + " ")
-        # text metadata [num charters, num words, ]
-
+        # text metadata [charcount, wordcount]
+        for count in textmeta:
+            file.write(str(count) + " ")
         # path to the flattened text file (.csv)
         file.write(textpath + "\n")
     file.close()
 
-def createdir(directory, label='', clean=False, verbose=False, quiet=False):
+def createdir(directory, dirlabel='', clean=False, verbose=False, quiet=False):
     if not os.path.isdir(directory):
         if not quiet:
-            print("The " + label + " directory '" + directory + "' does not exist. Creating directory...")
+            print("The " + dirlabel + " directory '" + directory + "' does not exist. Creating directory...")
         try:
             os.makedirs(directory)
             if verbose:
-                print("Created " + label + " directory: " + "'" + directory + "'")
+                print("Created " + dirlabel + " directory: " + "'" + directory + "'")
         except OSError as error:
             if not quiet:
-                print("Failed to create " + label + " directory: '" + directory + "'")
+                print("Failed to create " + dirlabel + " directory: '" + directory + "'")
             return True
     else:
         if not quiet:
-            print("The " + label + " directory '" + directory + "' already exists.")
+            print("The " + dirlabel + " directory '" + directory + "' already exists.")
         if clean:
             return True
     return False
@@ -148,7 +164,6 @@ def exportfilelist(fileList, name, path):
 def formattext(text, notrim=False, punctuation=False, alpha=False, case=False, quiet=False, verbose=False):
     if not notrim:
         # Remove all whitespace and replace with singular space
-        #text.strip()
         text = " ".join(text.split())
     if not punctuation:
         # Remove all punctuation
@@ -162,9 +177,8 @@ def formattext(text, notrim=False, punctuation=False, alpha=False, case=False, q
     return text
 
 def gettext(filepath):
-    #text = ""
     with open(filepath, "r") as document:
-        text = document.readlines()
+        text = "".join(document.readlines())
     return text
 
 def main():
@@ -188,12 +202,21 @@ def main():
 
     args = parser.parse_args()
 
-    if createdir(args.target, label="target", clean=(not args.override), verbose=args.verbose, quiet=args.quiet):
+    if createdir(args.target, dirlabel="target", clean=(not args.override), verbose=args.verbose, quiet=args.quiet):
         sys.exit()
-    if checkdirs(args.source, label="source", verbose=args.verbose, quiet=args.quiet):
+    if checkdirs(args.source, dirlabel="source", verbose=args.verbose, quiet=args.quiet):
         sys.exit()
     if args.metadata:
-        if createdir(args.metadata, label="metadata", clean=False, verbose=args.verbose, quiet=args.quiet):
+        if createdir(args.metadata, dirlabel="metadata", clean=False, verbose=args.verbose, quiet=args.quiet):
+            sys.exit()
+
+    if args.maxchars < args.minchars:
+        if not args.quiet:
+            print("Maximum characters flag set is less than the minimum characters flag.")
+            sys.exit()
+    if args.maxchars < 0 or args.minchars < 0:
+        if not args.quiet:
+            print("Maximum/minimum characters flag value is less than 0.")
             sys.exit()
 
     if not args.quiet:
@@ -225,14 +248,14 @@ def main():
                     text = formattext(text, notrim=args.notrim, punctuation=args.punctuation, alpha=args.alpha, case=args.case, quiet=args.quiet, verbose=args.verbose)
                     # Generate metadata
                     meta = getmeta(text, verbose=args.verbose)
-
+                    # Check if text has actual text in it as well as matching min and max character counts
                     if checkuseful(meta, minchars=args.minchars, maxchars=args.maxchars, verbose=args.verbose):
                         # Save new formatted and flattend text
                         flatpath = savetext(text, str(i), args.target, compress=args.compress, abspath=args.abspath)
                         i += 1
                         data.append([labels, meta, flatpath])
                     else:
-                    useless.append(filepath)
+                        useless.append(filepath)
 
                 # Else, data is not labeled
                 else:
@@ -244,11 +267,11 @@ def main():
         print("Finished processing documents. Now exporting metadata...")
 
     if args.metadata:
-        exportmeta(data, args.metadata, float=args.float)
+        exportmeta(data, args.metadata)
         exportfilelist(unlabeled, UNLABELED_FILENAME, args.metadata)
         exportfilelist(useless, USELESS_FILENAME, args.metadata)
     else:
-        exportmeta(data, args.target, float=args.float)
+        exportmeta(data, args.target)
         exportfilelist(unlabeled, UNLABELED_FILENAME, args.target)
         exportfilelist(useless, USELESS_FILENAME, args.target)
 
