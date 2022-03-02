@@ -177,6 +177,17 @@ def formattext(text, notrim=False, punctuation=False, alpha=False, case=False, q
     return text
 
 def gettext(filepath):
+    ext = os.path.splitext(filepath)[1]
+
+    #switch on extension to handle different file types
+
+    return readflat(filepath)
+
+
+def readpdf(filepath):
+    pass
+
+def readflat(filepath):
     with open(filepath, "r") as document:
         text = "".join(document.readlines())
     return text
